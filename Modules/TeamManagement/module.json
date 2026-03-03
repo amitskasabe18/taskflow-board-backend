@@ -1,0 +1,11 @@
+{
+    "name": "TeamManagement",
+    "alias": "teammanagement",
+    "description": "",
+    "keywords": [],
+    "priority": 0,
+    "providers": [
+        "Modules\\TeamManagement\\Providers\\TeamManagementServiceProvider"
+    ],
+    "files": []
+}

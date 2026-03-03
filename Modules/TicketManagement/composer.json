@@ -1,0 +1,30 @@
+{
+    "name": "nwidart/ticketmanagement",
+    "description": "",
+    "authors": [
+        {
+            "name": "Nicolas Widart",
+            "email": "n.widart@gmail.com"
+        }
+    ],
+    "extra": {
+        "laravel": {
+            "providers": [],
+            "aliases": {
+
+            }
+        }
+    },
+    "autoload": {
+        "psr-4": {
+            "Modules\\TicketManagement\\": "app/",
+            "Modules\\TicketManagement\\Database\\Factories\\": "database/factories/",
+            "Modules\\TicketManagement\\Database\\Seeders\\": "database/seeders/"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "Modules\\TicketManagement\\Tests\\": "tests/"
+        }
+    }
+}

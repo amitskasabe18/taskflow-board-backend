@@ -1,0 +1,10 @@
+{
+    "UserManagement": true,
+    "Auth": true,
+    "Blog": true,
+    "OrgonisationManagement": true,
+    "OrganizationManagement": true,
+    "TeamManagement": true,
+    "ProjectManagement": true,
+    "TicketManagement": true
+}

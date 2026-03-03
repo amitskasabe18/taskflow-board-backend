@@ -1,0 +1,30 @@
+{
+    "name": "nwidart/organizationmanagement",
+    "description": "",
+    "authors": [
+        {
+            "name": "Nicolas Widart",
+            "email": "n.widart@gmail.com"
+        }
+    ],
+    "extra": {
+        "laravel": {
+            "providers": [],
+            "aliases": {
+
+            }
+        }
+    },
+    "autoload": {
+        "psr-4": {
+            "Modules\\OrganizationManagement\\": "app/",
+            "Modules\\OrganizationManagement\\Database\\Factories\\": "database/factories/",
+            "Modules\\OrganizationManagement\\Database\\Seeders\\": "database/seeders/"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "Modules\\OrganizationManagement\\Tests\\": "tests/"
+        }
+    }
+}

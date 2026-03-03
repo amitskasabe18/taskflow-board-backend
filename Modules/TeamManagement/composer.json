@@ -1,0 +1,30 @@
+{
+    "name": "nwidart/teammanagement",
+    "description": "",
+    "authors": [
+        {
+            "name": "Nicolas Widart",
+            "email": "n.widart@gmail.com"
+        }
+    ],
+    "extra": {
+        "laravel": {
+            "providers": [],
+            "aliases": {
+
+            }
+        }
+    },
+    "autoload": {
+        "psr-4": {
+            "Modules\\TeamManagement\\": "app/",
+            "Modules\\TeamManagement\\Database\\Factories\\": "database/factories/",
+            "Modules\\TeamManagement\\Database\\Seeders\\": "database/seeders/"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "Modules\\TeamManagement\\Tests\\": "tests/"
+        }
+    }
+}
