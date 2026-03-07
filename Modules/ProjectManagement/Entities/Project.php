@@ -37,6 +37,13 @@ class Project extends Model
     ];
 
     /**
+     * The accessors to append to the model's array form.
+     * 
+     * @var array
+     */
+    protected $appends = ['key'];
+
+    /**
      * Get the organization that owns the project.
      */
     public function organisation(): BelongsTo
@@ -96,6 +103,34 @@ class Project extends Model
         }
 
         return $this->currency . number_format($this->budget, 2);
+    }
+
+    /**
+     * Get project key (generated from name if not in database).
+     * Format: First 3-4 letters of project name in uppercase
+     */
+    public function getKeyAttribute(): string
+    {
+        // If key is stored in database, return it
+        if (isset($this->attributes['key'])) {
+            return $this->attributes['key'];
+        }
+
+        // Generate key from project name
+        $name = $this->name ?? 'PROJECT';
+        $words = preg_split('/[\s\-_]+/', $name);
+        
+        if (count($words) > 1) {
+            // If multiple words, use first letter of each (max 4)
+            $key = '';
+            foreach (array_slice($words, 0, 4) as $word) {
+                $key .= strtoupper(substr($word, 0, 1));
+            }
+            return $key;
+        } else {
+            // Single word, use first 3-4 letters
+            return strtoupper(substr($name, 0, min(4, strlen($name))));
+        }
     }
 
     /**

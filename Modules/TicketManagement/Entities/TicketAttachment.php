@@ -12,10 +12,10 @@ class TicketAttachment extends Model
 
     protected $fillable = [
         'filename',
-        'original_filename',
         'mime_type',
         'size',
         'path',
+        'disk',
         'ticket_id',
         'uploaded_by',
     ];

@@ -7,6 +7,7 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Validator;
+use Illuminate\Support\Facades\Log;
 use Modules\TicketManagement\Entities\Ticket;
 use Modules\TicketManagement\Entities\Status;
 use Modules\ProjectManagement\Entities\Project;
@@ -31,7 +32,7 @@ class TicketController extends Controller
                 'description' => 'nullable|string|max:10000',
                 'type' => 'required|in:task,bug,story,epic,subtask,improvement',
                 'priority' => 'required|in:lowest,low,medium,high,highest',
-                'project_id' => 'required|exists:projects,id',
+                'project_id' => 'required|string', // Accept both numeric ID and UUID
                 'assignee_id' => 'nullable|exists:users,id',
                 'sprint_id' => 'nullable|exists:sprints,id',
                 'parent_id' => 'nullable|exists:tickets,id',
@@ -43,6 +44,8 @@ class TicketController extends Controller
                 'labels.*' => 'exists:labels,id',
                 'watchers' => 'nullable|array',
                 'watchers.*' => 'exists:users,id',
+                'attachments' => 'nullable|array',
+                'attachments.*' => 'file|max:10240', // Max 10MB per file
             ], [
                 'title.required' => 'Ticket title is required',
                 'title.max' => 'Ticket title cannot exceed 255 characters',
@@ -52,7 +55,6 @@ class TicketController extends Controller
                 'priority.required' => 'Ticket priority is required',
                 'priority.in' => 'Invalid priority level',
                 'project_id.required' => 'Project is required',
-                'project_id.exists' => 'Invalid project',
                 'assignee_id.exists' => 'Invalid assignee',
                 'sprint_id.exists' => 'Invalid sprint',
                 'parent_id.exists' => 'Invalid parent ticket',
@@ -150,7 +152,7 @@ class TicketController extends Controller
             }
 
             // Generate ticket key and sequence
-            $ticketKeySequence = $this->generateTicketKeySequence($request->project_id);
+            $ticketKeySequence = $this->generateTicketKeySequence($project->id);
             $ticketKey = $project->key . '-' . $ticketKeySequence;
 
             // Get default status for the project
@@ -165,7 +167,7 @@ class TicketController extends Controller
             DB::beginTransaction();
 
             try {
-                // Create the ticket
+                // Create the ticket using the numeric project ID
                 $ticket = Ticket::create([
                     'uuid' => \Illuminate\Support\Str::uuid(),
                     'key' => $ticketKey,
@@ -175,7 +177,7 @@ class TicketController extends Controller
                     'type' => $request->type,
                     'priority' => $request->priority,
                     'status_id' => $defaultStatus->id,
-                    'project_id' => $request->project_id,
+                    'project_id' => $project->id, // Use the numeric project ID
                     'reporter_id' => $user->id,
                     'assignee_id' => $request->assignee_id,
                     'sprint_id' => $request->sprint_id,
@@ -185,7 +187,7 @@ class TicketController extends Controller
                     'remaining_estimate_minutes' => $request->original_estimate_minutes,
                     'due_date' => $request->due_date,
                     'start_date' => $request->start_date,
-                    'position' => $this->generateTicketPosition($request->project_id, $request->sprint_id),
+                    'position' => $this->generateTicketPosition($project->id, $request->sprint_id),
                 ]);
 
                 // Attach labels if provided
@@ -199,6 +201,25 @@ class TicketController extends Controller
                     $watchers[] = $user->id;
                 }
                 $ticket->watchers()->attach($watchers);
+
+                // Handle file uploads
+                if ($request->hasFile('attachments')) {
+                    foreach ($request->file('attachments') as $file) {
+                        if ($file->isValid()) {
+                            $filename = time() . '_' . $file->getClientOriginalName();
+                            $path = $file->storeAs('ticket-attachments/' . $ticket->id, $filename, 'public');
+                            
+                            $ticket->attachments()->create([
+                                'filename' => $file->getClientOriginalName(), // Store original filename
+                                'disk' => 'public',
+                                'path' => $path,
+                                'mime_type' => $file->getMimeType(),
+                                'size' => $file->getSize(),
+                                'uploaded_by' => $user->id,
+                            ]);
+                        }
+                    }
+                }
 
                 // Create history entry for ticket creation
                 $ticket->history()->create([
@@ -222,6 +243,7 @@ class TicketController extends Controller
                     'parent',
                     'labels',
                     'watchers',
+                    'attachments.uploader',
                 ]);
 
                 return response()->json([
@@ -292,6 +314,8 @@ class TicketController extends Controller
             $sortOrder = request()->query('sort_order', 'desc');
             $includeArchived = request()->query('include_archived', false);
 
+          
+            
             // Build query
             $query = Ticket::with([
                 'status',
@@ -299,7 +323,8 @@ class TicketController extends Controller
                 'sprint',
                 'parent',
                 'labels',
-                'watchers'
+                'watchers',
+                'attachments.uploader'
             ])
             ->where('project_id', $project->id);
 

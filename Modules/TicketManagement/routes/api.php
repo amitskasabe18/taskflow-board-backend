@@ -9,7 +9,7 @@ Route::middleware(['auth:api'])->prefix('v1')->group(function () {
     
     // Ticket routes
     Route::get('/projects/{projectId}/tickets', [TicketController::class, 'index'])->name('tickets.index');
-    Route::post('/tickets', [TicketController::class, 'store'])->name('tickets.store');
+    Route::post('/projects/{projectId}/tickets', [TicketController::class, 'store'])->name('tickets.store');
     Route::get('/tickets/{ticket}', [TicketController::class, 'show'])->name('tickets.show');
     Route::put('/tickets/{ticket}', [TicketController::class, 'update'])->name('tickets.update');
     Route::delete('/tickets/{ticket}', [TicketController::class, 'destroy'])->name('tickets.destroy');
