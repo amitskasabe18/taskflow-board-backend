@@ -15,6 +15,10 @@ Route::prefix('v1')->group(function () {
         Route::middleware('auth:api')->group(function () {
             Route::get('{projectId}', [UserManagementController::class, 'getUsers']);
             Route::get('me', [UserManagementController::class, 'me']);
+            Route::prefix('statistics')->group(function () {
+                Route::get('my', [UserManagementController::class, 'getMyStatistics']);
+            });
         });
+
     });
 });

@@ -29,4 +29,5 @@ Route::middleware(['auth:api'])->prefix('v1')->group(function () {
     Route::post('/tickets/{ticket}/unwatch', [TicketController::class, 'unwatch'])->name('tickets.unwatch');
     Route::post('/tickets/{ticket}/link', [TicketController::class, 'link'])->name('tickets.link');
     Route::post('/tickets/{ticket}/move', [TicketController::class, 'move'])->name('tickets.move');
+    Route::patch('/tickets/{ticket_id}/update-ticket-status', [TicketController::class, 'updateTicketStatus'])->name('tickets.update-status');
 });

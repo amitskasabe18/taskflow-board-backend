@@ -16,16 +16,17 @@ class TicketManagementSeeder extends Seeder
     {
         // Create default statuses
         $statuses = [
+            ['name' => 'Backlog', 'slug' => 'backlog', 'color' => '#94A3B8', 'category' => 'todo', 'position' => 0, 'is_default' => false],
             ['name' => 'To Do', 'slug' => 'todo', 'color' => '#6B7280', 'category' => 'todo', 'position' => 1, 'is_default' => true],
             ['name' => 'In Progress', 'slug' => 'in_progress', 'color' => '#3B82F6', 'category' => 'in_progress', 'position' => 2, 'is_default' => false],
-            ['name' => 'In Review', 'slug' => 'in_review', 'color' => '#F59E0B', 'category' => 'in_progress', 'position' => 3, 'is_default' => false],
+            ['name' => 'Review', 'slug' => 'review', 'color' => '#F59E0B', 'category' => 'in_progress', 'position' => 3, 'is_default' => false],
             ['name' => 'Done', 'slug' => 'done', 'color' => '#10B981', 'category' => 'done', 'position' => 4, 'is_default' => false],
             ['name' => 'Blocked', 'slug' => 'blocked', 'color' => '#EF4444', 'category' => 'todo', 'position' => 5, 'is_default' => false],
         ];
 
         foreach ($statuses as $status) {
-            Status::firstOrCreate(
-                ['slug' => $status['slug']],
+            Status::updateOrCreate(
+                ['project_id' => null, 'slug' => $status['slug']],
                 [
                     'name' => $status['name'],
                     'color' => $status['color'],
@@ -34,6 +35,21 @@ class TicketManagementSeeder extends Seeder
                     'is_default' => $status['is_default'],
                 ]
             );
+        }
+
+        // Backwards-compat: migrate old in_review slug to review
+        $oldInReview = Status::where('project_id', null)->where('slug', 'in_review')->first();
+        if ($oldInReview) {
+            $existingReview = Status::where('project_id', null)->where('slug', 'review')->first();
+            if ($existingReview) {
+                $oldInReview->delete();
+            } else {
+                $oldInReview->update([
+                    'name' => 'Review',
+                    'slug' => 'review',
+                    'category' => 'in_progress',
+                ]);
+            }
         }
 
         // Create default labels (project-specific labels)
@@ -52,13 +68,10 @@ class TicketManagementSeeder extends Seeder
         $firstProject = \DB::table('projects')->first();
         if ($firstProject) {
             foreach ($labels as $label) {
-                \DB::table('labels')->insert([
-                    'name' => $label['name'],
-                    'color' => $label['color'],
-                    'project_id' => $firstProject->id,
-                    'created_at' => now(),
-                    'updated_at' => now(),
-                ]);
+                Label::updateOrCreate(
+                    ['project_id' => $firstProject->id, 'name' => $label['name']],
+                    ['color' => $label['color']]
+                );
             }
         }
 

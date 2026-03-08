@@ -6,5 +6,6 @@
     "OrganizationManagement": true,
     "TeamManagement": true,
     "ProjectManagement": true,
-    "TicketManagement": true
+    "TicketManagement": true,
+    "Setting": true
 }

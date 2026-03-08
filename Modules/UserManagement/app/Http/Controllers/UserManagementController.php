@@ -8,7 +8,9 @@ use Illuminate\Support\Facades\Validator;
 use Modules\UserManagement\Entities\User;
 use Modules\UserManagement\Helpers\ApiResponse;
 use Modules\UserManagement\Services\OtpService;
+use Modules\TicketManagement\Entities\Ticket;
 use Tymon\JWTAuth\Facades\JWTAuth;
+use Illuminate\Support\Facades\Auth;
 
 class UserManagementController extends Controller
 {
@@ -53,7 +55,7 @@ class UserManagementController extends Controller
     {
         $validator = Validator::make($request->all(), [
             'email' => 'required|email',
-            'otp' => 'required|digits:6'
+            'otp' => 'required|digits_between:4,8'
         ]);
 
         if ($validator->fails()) {
@@ -177,6 +179,21 @@ class UserManagementController extends Controller
         ];
 
         return ApiResponse::success($userData, 'Register successful', 201);
+    }
+
+    public function getMyStatistics()
+    {
+        $me = Auth::user();
+        // from ticket table, get count of tickets created by me, assigned to me, and resolved by me
+        $createdTickets = Ticket::where('reporter_id', $me->id)->count();
+        $assignedTickets = Ticket::where('assignee_id', $me->id)->count();
+        $resolvedTickets = Ticket::where('assignee_id', $me->id)->whereNotNull('resolved_at')->count();
+        
+        return ApiResponse::success([
+            'created_tickets' => $createdTickets,
+            'assigned_tickets' => $assignedTickets,
+            'resolved_tickets' => $resolvedTickets
+        ], 'My statistics retrieved successfully');
     }
 
     public function me(Request $request)

@@ -9,6 +9,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Facades\Log;
 use Modules\TicketManagement\Entities\Ticket;
+use Modules\TicketManagement\Entities\TicketHistory;
 use Modules\TicketManagement\Entities\Status;
 use Modules\ProjectManagement\Entities\Project;
 use Modules\UserManagement\Entities\User;
@@ -594,5 +595,277 @@ class TicketController extends Controller
         }
 
         return false;
+    }
+
+    /**
+     * Update ticket status (only assignee can update)
+     * 
+     * @param Request $request
+     * @param string $ticket_id
+     * @return JsonResponse
+     */
+    public function updateTicketStatus(Request $request, string $ticket_id): JsonResponse
+    {
+        try {
+            $user = Auth::user();
+            
+            // Find the ticket
+            $ticket = Ticket::where('uuid', $ticket_id)->with('assignee')->first();
+            
+            if (!$ticket) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Ticket not found'
+                ], 404);
+            }
+
+            // Authorization check: Only assigned user can update status
+            if (!$ticket->assignee_id || $ticket->assignee_id !== $user->id) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'You can only update the status of tickets assigned to you'
+                ], 403);
+            }
+
+            // Validate request data
+            $validator = Validator::make($request->all(), [
+                'status_id' => 'required|exists:statuses,id',
+            ], [
+                'status_id.required' => 'Status ID is required',
+                'status_id.exists' => 'Invalid status',
+            ]);
+
+            if ($validator->fails()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Validation failed',
+                    'errors' => $validator->errors()
+                ], 422);
+            }
+
+            // Verify the status belongs to the same project
+            $status = Status::find($request->status_id);
+            if (!$status || ($status->project_id && $status->project_id !== $ticket->project_id)) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Status does not belong to this project'
+                ], 422);
+            }
+
+            // Update ticket status
+            $oldStatus = $ticket->status_id;
+            $ticket->status_id = $request->status_id;
+            $ticket->save();
+
+            // Create history entry for status change
+            $ticket->history()->create([
+                'ticket_id' => $ticket->id,
+                'user_id' => $user->id,
+                'field_name' => 'status',
+                'old_value' => $oldStatus ? $oldStatus : null,
+                'new_value' => $request->status_id,
+                'change_type' => 'updated',
+            ]);
+
+            // Load relationships for response
+            $ticket->load(['status', 'assignee', 'project']);
+
+            // Log the status change
+            Log::info('Ticket status updated', [
+                'ticket_id' => $ticket->id,
+                'user_id' => $user->id,
+                'old_status_id' => $oldStatus,
+                'new_status_id' => $request->status_id,
+                'updated_at' => now()
+            ]);
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Ticket status updated successfully',
+                'data' => [
+                    'ticket' => $ticket,
+                    'old_status_id' => $oldStatus,
+                    'new_status_id' => $request->status_id
+                ]
+            ]);
+
+        } catch (\Exception $e) {
+            Log::error('Error updating ticket status: ' . $e->getMessage(), [
+                'ticket_id' => $ticket_id,
+                'user_id' => Auth::id(),
+                'trace' => $e->getTraceAsString()
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to update ticket status: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Get ticket history
+     * 
+     * @param string $ticket_id
+     * @return JsonResponse
+     */
+    public function history(string $ticket_id): JsonResponse
+    {
+        try {
+            $user = Auth::user();
+            
+            // Find the ticket by UUID
+            $ticket = Ticket::where('uuid', $ticket_id)->first();
+            
+            if (!$ticket) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Ticket not found'
+                ], 404);
+            }
+
+            // Check if user has access to this ticket (project member)
+            $project = Project::find($ticket->project_id);
+            if (!$project || !$project->users()->where('users.id', $user->id)->exists()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'You do not have access to this ticket'
+                ], 403);
+            }
+
+            // Get ticket history with user and status details
+            $history = $ticket->history()
+                ->with(['user:id,first_name,last_name,email'])
+                ->orderBy('created_at', 'desc')
+                ->get()
+                ->map(function ($item) {
+                    return [
+                        'id' => $item->id,
+                        'field_name' => $item->field_name,
+                        'old_value' => $item->old_value,
+                        'new_value' => $item->new_value,
+                        'change_type' => $item->change_type,
+                        'created_at' => $item->created_at->toISOString(),
+                        'user' => $item->user ? [
+                            'id' => $item->user->id,
+                            'name' => trim($item->user->first_name . ' ' . $item->user->last_name),
+                            'email' => $item->user->email
+                        ] : null,
+                        // Additional context for specific field types
+                        'field_display_name' => $this->getFieldDisplayName($item->field_name),
+                        'value_display' => $this->getFieldValueDisplay($item->field_name, $item->old_value, $item->new_value),
+                    ];
+                });
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Ticket history retrieved successfully',
+                'data' => [
+                    'ticket' => [
+                        'id' => $ticket->uuid,
+                        'title' => $ticket->title,
+                        'project_id' => $ticket->project_id
+                    ],
+                    'history' => $history,
+                    'total_changes' => $history->count()
+                ]
+            ]);
+
+        } catch (\Exception $e) {
+            Log::error('Error retrieving ticket history: ' . $e->getMessage(), [
+                'ticket_id' => $ticket_id,
+                'user_id' => Auth::id(),
+                'trace' => $e->getTraceAsString()
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to retrieve ticket history: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Get display name for field
+     */
+    private function getFieldDisplayName(string $fieldName): string
+    {
+        $displayNames = [
+            'created' => 'Ticket Created',
+            'status' => 'Status',
+            'assignee_id' => 'Assignee',
+            'priority' => 'Priority',
+            'title' => 'Title',
+            'description' => 'Description',
+            'story_points' => 'Story Points',
+            'due_date' => 'Due Date',
+            'start_date' => 'Start Date',
+            'type' => 'Type',
+        ];
+
+        return $displayNames[$fieldName] ?? ucfirst($fieldName);
+    }
+
+    /**
+     * Get display values for field changes
+     */
+    private function getFieldValueDisplay(string $fieldName, $oldValue, $newValue): array
+    {
+        $display = [
+            'old_value' => $oldValue,
+            'new_value' => $newValue,
+        ];
+
+        // Handle special cases for different field types
+        switch ($fieldName) {
+            case 'status':
+                if ($oldValue) {
+                    $oldStatus = Status::find($oldValue);
+                    $display['old_value'] = $oldStatus ? $oldStatus->name : $oldValue;
+                }
+                if ($newValue) {
+                    $newStatus = Status::find($newValue);
+                    $display['new_value'] = $newStatus ? $newStatus->name : $newValue;
+                }
+                break;
+                
+            case 'assignee_id':
+                if ($oldValue) {
+                    $oldUser = User::find($oldValue);
+                    $display['old_value'] = $oldUser ? trim($oldUser->first_name . ' ' . $oldUser->last_name) : $oldValue;
+                }
+                if ($newValue) {
+                    $newUser = User::find($newValue);
+                    $display['new_value'] = $newUser ? trim($newUser->first_name . ' ' . $newUser->last_name) : $newValue;
+                }
+                break;
+                
+            case 'priority':
+                $priorities = [
+                    'lowest' => 'Lowest',
+                    'low' => 'Low', 
+                    'medium' => 'Medium',
+                    'high' => 'High',
+                    'highest' => 'Highest'
+                ];
+                $display['old_value'] = $priorities[$oldValue] ?? $oldValue;
+                $display['new_value'] = $priorities[$newValue] ?? $newValue;
+                break;
+                
+            case 'type':
+                $types = [
+                    'task' => 'Task',
+                    'bug' => 'Bug',
+                    'story' => 'Story', 
+                    'epic' => 'Epic',
+                    'subtask' => 'Sub-task',
+                    'improvement' => 'Improvement'
+                ];
+                $display['old_value'] = $types[$oldValue] ?? $oldValue;
+                $display['new_value'] = $types[$newValue] ?? $newValue;
+                break;
+        }
+
+        return $display;
     }
 }
