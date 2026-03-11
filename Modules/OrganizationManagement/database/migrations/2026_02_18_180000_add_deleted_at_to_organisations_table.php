@@ -22,7 +22,7 @@ return new class extends Migration
      * Reverse the migrations.
      */
     public function down(): void
-    {
+    {   
         Schema::table('organisations', function (Blueprint $table) {
             if (Schema::hasColumn('organisations', 'deleted_at')) {
                 $table->dropSoftDeletes();
