@@ -548,6 +548,153 @@ class TicketController extends Controller
     }
 
     /**
+     * Update a ticket
+     * 
+     * @param Request $request
+     * @param string $ticket
+     * @return JsonResponse
+     */
+    public function update(Request $request, string $ticket): JsonResponse
+    {
+        try {
+            $user = Auth::user();
+            
+            // Find the ticket with project relationship
+            $ticketModel = Ticket::with('project')->where('uuid', $ticket)->first();
+            
+            if (!$ticketModel) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Ticket not found'
+                ], 404);
+            }
+
+            // Check if user has access to the project
+            if (!$ticketModel->project->users()->where('users.id', $user->id)->exists()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'You do not have access to this ticket'
+                ], 403);
+            }
+
+            // Prepare update data
+            $updateData = [];
+            $historyEntries = [];
+
+            // Handle status update (convert slug to status_id if needed)
+            if ($request->has('status')) {
+                $statusSlug = $request->input('status');
+                $status = Status::where('slug', $statusSlug)->first();
+                
+                if (!$status) {
+                    return response()->json([
+                        'success' => false,
+                        'message' => 'Invalid status: ' . $statusSlug
+                    ], 422);
+                }
+
+                // Verify the status belongs to the same project or is global
+                if ($status->project_id && $status->project_id !== $ticketModel->project_id) {
+                    return response()->json([
+                        'success' => false,
+                        'message' => 'Status does not belong to this project'
+                    ], 422);
+                }
+
+                if ($ticketModel->status_id !== $status->id) {
+                    $historyEntries[] = [
+                        'field_name' => 'status',
+                        'old_value' => $ticketModel->status_id,
+                        'new_value' => $status->id,
+                    ];
+                    $updateData['status_id'] = $status->id;
+                }
+            }
+
+            // Handle other updates
+            $allowedFields = [
+                'title', 'description', 'type', 'priority', 
+                'assignee_id', 'sprint_id', 'parent_id', 
+                'story_points', 'original_estimate_minutes', 
+                'remaining_estimate_minutes', 'due_date', 'start_date',
+                'resolution_status', 'resolution_note', 'environment'
+            ];
+
+            foreach ($allowedFields as $field) {
+                if ($request->has($field)) {
+                    $newValue = $request->input($field);
+                    if ($ticketModel->$field != $newValue) {
+                        $historyEntries[] = [
+                            'field_name' => $field,
+                            'old_value' => $ticketModel->$field,
+                            'new_value' => $newValue,
+                        ];
+                        $updateData[$field] = $newValue;
+                    }
+                }
+            }
+
+            // If no changes, return early
+            if (empty($updateData)) {
+                return response()->json([
+                    'success' => true,
+                    'message' => 'No changes detected',
+                    'data' => [
+                        'ticket' => $ticketModel->load(['status', 'assignee', 'project'])
+                    ]
+                ]);
+            }
+
+            // Update the ticket
+            $ticketModel->update($updateData);
+
+            // Create history entries
+            foreach ($historyEntries as $entry) {
+                $ticketModel->history()->create([
+                    'ticket_id' => $ticketModel->id,
+                    'user_id' => $user->id,
+                    'field_name' => $entry['field_name'],
+                    'old_value' => $entry['old_value'],
+                    'new_value' => $entry['new_value'],
+                    'change_type' => 'updated',
+                ]);
+            }
+
+            // Load relationships for response
+            $ticketModel->load(['status', 'assignee', 'project']);
+
+            // Log the update
+            Log::info('Ticket updated', [
+                'ticket_id' => $ticketModel->id,
+                'ticket_uuid' => $ticketModel->uuid,
+                'user_id' => $user->id,
+                'updated_fields' => array_keys($updateData),
+                'updated_at' => now()
+            ]);
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Ticket updated successfully',
+                'data' => [
+                    'ticket' => $ticketModel
+                ]
+            ]);
+
+        } catch (\Exception $e) {
+            Log::error('Error updating ticket: ' . $e->getMessage(), [
+                'ticket' => $ticket,
+                'user_id' => Auth::id(),
+                'trace' => $e->getTraceAsString()
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to update ticket: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
      * Generate ticket key sequence for a project
      */
     private function generateTicketKeySequence(int $projectId): int

@@ -10,9 +10,13 @@ class Status extends Model
     use HasFactory;
 
     protected $fillable = [
+        'project_id',
         'name',
+        'slug',
+        'category',
         'color',
-        'description',
+        'position',
+        'is_default',
     ];
 
     protected $casts = [
