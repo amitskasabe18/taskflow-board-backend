@@ -156,13 +156,33 @@ class TicketController extends Controller
             $ticketKeySequence = $this->generateTicketKeySequence($project->id);
             $ticketKey = $project->key . '-' . $ticketKeySequence;
 
-            // Get default status for the project
-            $defaultStatus = Status::where('slug', 'todo')->first();
-            if (!$defaultStatus) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Default status "To Do" not found',
-                ], 500);
+            // Get the status_id from the request, or use default if not provided
+            $statusId = $request->status_id;
+            if (!$statusId) {
+                // Get default status for the project (fallback)
+                $defaultStatus = Status::where('slug', 'todo')->first();
+                if (!$defaultStatus) {
+                    return response()->json([
+                        'success' => false,
+                        'message' => 'Default status "To Do" not found',
+                    ], 500);
+                }
+                $statusId = $defaultStatus->id;
+            } else {
+                // Validate that the provided status_id exists and belongs to the project or is global
+                $status = Status::where('id', $statusId)
+                    ->where(function($query) use ($project) {
+                        $query->where('project_id', $project->id)
+                              ->orWhere('project_id', null);
+                    })
+                    ->first();
+                
+                if (!$status) {
+                    return response()->json([
+                        'success' => false,
+                        'message' => 'Invalid status selected',
+                    ], 422);
+                }
             }
 
             DB::beginTransaction();
@@ -177,7 +197,7 @@ class TicketController extends Controller
                     'description' => $request->description,
                     'type' => $request->type,
                     'priority' => $request->priority,
-                    'status_id' => $defaultStatus->id,
+                    'status_id' => $statusId,
                     'project_id' => $project->id, // Use the numeric project ID
                     'reporter_id' => $user->id,
                     'assignee_id' => $request->assignee_id,
@@ -695,14 +715,133 @@ class TicketController extends Controller
     }
 
     /**
+     * Delete a ticket
+     * 
+     * @param string $uuid
+     * @return JsonResponse
+     */
+    public function destroy(string $uuid): JsonResponse
+    {
+        try {
+            $user = Auth::user();
+            
+            if (!$user) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Unauthenticated'
+                ], 401);
+            }
+            
+            // Find the ticket by UUID
+            $ticket = Ticket::where('uuid', $uuid)->firstOrFail();
+            
+            // Check if the current user is the reporter (creator) of the ticket
+            if ($ticket->reporter_id !== $user->id) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'You can only delete tickets you created'
+                ], 403);
+            }
+            
+            // Check if the user has access to the project
+            $project = $ticket->project;
+            if (!$project->users()->where('user_id', $user->id)->exists()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'You do not have access to this project'
+                ], 403);
+            }
+            
+            // Delete the ticket
+            $ticketKey = $ticket->key;
+            $ticket->delete();
+            
+            return response()->json([
+                'success' => true,
+                'message' => "Ticket {$ticketKey} deleted successfully"
+            ]);
+            
+        } catch (\Illuminate\Database\Eloquent\ModelNotFoundException $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Ticket not found'
+            ], 404);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to delete ticket: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Get statuses for a project
+     */
+    public function getStatuses($projectId)
+    {
+        try {
+            // Get project-specific statuses first
+            $projectStatuses = Status::where('project_id', $projectId)
+                ->orderBy('position', 'asc')
+                ->get();
+            
+            // If no project-specific statuses, get global statuses
+            if ($projectStatuses->isEmpty()) {
+                $globalStatuses = Status::where('project_id', null)
+                    ->orderBy('position', 'asc')
+                    ->get();
+                
+                return response()->json([
+                    'success' => true,
+                    'message' => 'Global statuses retrieved successfully',
+                    'data' => $globalStatuses
+                ]);
+            }
+            
+            return response()->json([
+                'success' => true,
+                'message' => 'Project statuses retrieved successfully',
+                'data' => $projectStatuses
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to retrieve statuses: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
      * Generate ticket key sequence for a project
      */
     private function generateTicketKeySequence(int $projectId): int
     {
+        // Generate a random 4-digit number (1000-9999)
+        $randomSequence = mt_rand(1000, 9999);
+        
+        // Ensure uniqueness by checking if this sequence already exists for the project
+        $maxAttempts = 100; // Prevent infinite loops
+        $attempts = 0;
+        
+        while ($attempts < $maxAttempts) {
+            $exists = Ticket::where('project_id', $projectId)
+                ->where('key_sequence', $randomSequence)
+                ->exists();
+            
+            if (!$exists) {
+                return $randomSequence;
+            }
+            
+            // Try a different random number if collision occurs
+            $randomSequence = mt_rand(1000, 9999);
+            $attempts++;
+        }
+        
+        // Fallback to sequential if all random numbers are taken (very unlikely)
         $maxSequence = Ticket::where('project_id', $projectId)
             ->max('key_sequence');
         
-        return $maxSequence ? $maxSequence + 1 : 1;
+        return $maxSequence ? $maxSequence + 1 : $randomSequence;
     }
 
     /**

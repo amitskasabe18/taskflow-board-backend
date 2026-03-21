@@ -143,6 +143,7 @@ class Project extends Model
             'medium' => 'Medium',
             'high' => 'High',
             'urgent' => 'Urgent',
+            'critical' => 'Critical',
         ];
 
         return $labels[$this->priority] ?? 'Medium';

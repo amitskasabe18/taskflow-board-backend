@@ -27,9 +27,10 @@ class ProjectController extends Controller
             // Validate request data
             $validator = Validator::make($request->all(), [
                 'name' => 'required|string|max:255',
+                'shortcode' => 'nullable|string|max:10|unique:projects,shortcode',
                 'description' => 'nullable|string|max:2000',
                 'status' => 'sometimes|in:active,completed,archived,on_hold',
-                'priority' => 'sometimes|in:low,medium,high,urgent',
+                'priority' => 'sometimes|in:low,medium,high,urgent,critical',
                 'start_date' => 'sometimes|date|after_or_equal:today',
                 'end_date' => 'sometimes|date|after:start_date',
                 'budget' => 'sometimes|numeric|min:0|max:9999999999.99',
@@ -59,6 +60,7 @@ class ProjectController extends Controller
             $project = DB::table('projects')->insert([
                 'uuid' => Str::uuid(),
                 'name' => $request->name,
+                'shortcode' => $request->shortcode,
                 'description' => $request->description,
                 'status' => $request->status ?? 'active',
                 'priority' => $request->priority ?? 'medium',
@@ -450,42 +452,15 @@ class ProjectController extends Controller
             // Validate request data
             $validator = Validator::make($request->all(), [
                 'name' => 'sometimes|string|max:255',
+                'shortcode' => 'sometimes|nullable|string|max:10|unique:projects,shortcode,' . ($project->id ?? ''),
                 'description' => 'sometimes|nullable|string|max:2000',
                 'status' => 'sometimes|in:active,completed,archived,on_hold',
-                'priority' => 'sometimes|in:low,medium,high,urgent',
+                'priority' => 'sometimes|in:low,medium,high,urgent,critical',
                 'start_date' => 'sometimes|date',
                 'end_date' => 'sometimes|date|after:start_date',
                 'budget' => 'sometimes|numeric|min:0|max:9999999999.99',
                 'currency' => 'sometimes|string|size:3',
                 'metadata' => 'sometimes|array',
-            ]);
-
-            if ($validator->fails()) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Validation failed',
-                    'errors' => $validator->errors(),
-                ], 422);
-            }
-
-            // Update the project
-            DB::table('projects')->where('uuid', $uuid)->update(array_filter([
-                'name' => $request->name,
-                'description' => $request->description,
-                'status' => $request->status,
-                'priority' => $request->priority,
-                'start_date' => $request->start_date,
-                'end_date' => $request->end_date,
-                'budget' => $request->budget,
-                'currency' => $request->currency,
-                'metadata' => $request->metadata,
-                'updated_at' => now(),
-            ], fn($value) => !is_null($value)));
-
-            $project = DB::table('projects')->where('uuid', $uuid)->first();
-
-            return response()->json([
-                'success' => true,
                 'message' => 'Project updated successfully',
                 'data' => [
                     'project' => $project,
