@@ -1,0 +1,11 @@
+{
+    "name": "RepoManagement",
+    "alias": "repomanagement",
+    "description": "",
+    "keywords": [],
+    "priority": 0,
+    "providers": [
+        "Modules\\RepoManagement\\Providers\\RepoManagementServiceProvider"
+    ],
+    "files": []
+}

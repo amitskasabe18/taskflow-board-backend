@@ -1,13 +1,13 @@
 <?php
 
-namespace Modules\ProjectManagement\Providers;
+namespace Modules\RepoManagement\Providers;
 
 use Illuminate\Foundation\Support\Providers\RouteServiceProvider as ServiceProvider;
 use Illuminate\Support\Facades\Route;
 
 class RouteServiceProvider extends ServiceProvider
 {
-    protected string $name = 'ProjectManagement';
+    protected string $name = 'RepoManagement';
 
     /**
      * Called before routes are registered.

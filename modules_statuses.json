@@ -8,5 +8,6 @@
     "ProjectManagement": true,
     "TicketManagement": true,
     "Setting": true,
-    "Admin": true
+    "Admin": true,
+    "RepoManagement": true
 }
