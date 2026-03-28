@@ -11,6 +11,7 @@ use Modules\UserManagement\Services\OtpService;
 use Modules\TicketManagement\Entities\Ticket;
 use Tymon\JWTAuth\Facades\JWTAuth;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
 
 class UserManagementController extends Controller
 {
@@ -206,5 +207,22 @@ class UserManagementController extends Controller
     {
         JWTAuth::invalidate(JWTAuth::getToken());
         return ApiResponse::success(null, 'Logout successful');
+    }
+
+    /**
+     * Get all available roles
+     */
+    public function getRoles()
+    {
+        try {
+            $roles = DB::table('roles_master')
+                ->where('status', 'active')
+                ->orderBy('name', 'asc')
+                ->get(['id', 'name', 'slug']);
+
+            return ApiResponse::success($roles, 'Roles retrieved successfully');
+        } catch (\Exception $e) {
+            return ApiResponse::error('Failed to retrieve roles', 500);
+        }
     }
 }

@@ -7,6 +7,7 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 use Modules\OrganizationManagement\Entities\Organisation;
 use Modules\ProjectManagement\Entities\ProjectInvitation;
@@ -23,7 +24,7 @@ class ProjectController extends Controller
     {
         try {
             $user = Auth::user();
-            
+
             // Validate request data
             $validator = Validator::make($request->all(), [
                 'name' => 'required|string|max:255',
@@ -91,7 +92,7 @@ class ProjectController extends Controller
                         'updated_at' => now(),
                     ];
                 }
-                
+
                 // Add the creator as a manager
                 $teamMembers[] = [
                     'project_id' => $projectId,
@@ -101,7 +102,7 @@ class ProjectController extends Controller
                     'created_at' => now(),
                     'updated_at' => now(),
                 ];
-                
+
                 DB::table('project_user')->insert($teamMembers);
             } else {
                 // Add only the creator as manager
@@ -115,8 +116,12 @@ class ProjectController extends Controller
                 ]);
             }
 
-            // Get the created project for response
+            // Get the created project for response - ensure we get the UUID
             $project = DB::table('projects')->where('id', $projectId)->first();
+
+            // Debug: Log what we're returning
+            \Log::info('Project created with UUID: ' . ($project->uuid ?? 'NULL'));
+            \Log::info('Full project data: ' . json_encode($project));
 
             return response()->json([
                 'success' => true,
@@ -125,7 +130,6 @@ class ProjectController extends Controller
                     'project' => $project,
                 ],
             ], 201);
-
         } catch (\Exception $e) {
             return response()->json([
                 'success' => false,
@@ -142,7 +146,7 @@ class ProjectController extends Controller
     {
         try {
             $user = Auth::user();
-            
+
             if (!$user->organisation_id) {
                 return response()->json([
                     'success' => false,
@@ -166,7 +170,6 @@ class ProjectController extends Controller
                     'projects' => $projects,
                 ],
             ]);
-
         } catch (\Exception $e) {
             return response()->json([
                 'success' => false,
@@ -183,7 +186,7 @@ class ProjectController extends Controller
     {
         try {
             $user = Auth::user();
-            
+
             if (!$user->organisation_id) {
                 return response()->json([
                     'success' => false,
@@ -207,11 +210,11 @@ class ProjectController extends Controller
                     ->where('project_user.project_id', $project->id)
                     ->select('users.*', 'project_user.role', 'project_user.joined_at')
                     ->get();
-                
+
                 $project->created_by = DB::table('users')
                     ->where('users.id', $project->created_by)
                     ->first();
-                
+
                 return $project;
             });
 
@@ -222,7 +225,6 @@ class ProjectController extends Controller
                     'projects' => $projects,
                 ],
             ]);
-
         } catch (\Exception $e) {
             return response()->json([
                 'success' => false,
@@ -239,7 +241,7 @@ class ProjectController extends Controller
     {
         try {
             $user = Auth::user();
-            
+
             $project = DB::table('projects')
                 ->where('uuid', $uuid)
                 ->first();
@@ -287,7 +289,6 @@ class ProjectController extends Controller
                     ],
                 ],
             ]);
-
         } catch (\Exception $e) {
             return response()->json([
                 'success' => false,
@@ -324,7 +325,6 @@ class ProjectController extends Controller
                     'project' => $project,
                 ],
             ]);
-
         } catch (\Exception $e) {
             return response()->json([
                 'success' => false,
@@ -414,7 +414,6 @@ class ProjectController extends Controller
                     'current_user_role' => $formattedMembers->firstWhere('is_current_user', true)?->role ?? null,
                 ],
             ]);
-
         } catch (\Exception $e) {
             return response()->json([
                 'success' => false,
@@ -431,7 +430,7 @@ class ProjectController extends Controller
     {
         try {
             $user = Auth::user();
-            
+
             $project = DB::table('projects')->where('uuid', $uuid)->first();
 
             if (!$project) {
@@ -466,7 +465,6 @@ class ProjectController extends Controller
                     'project' => $project,
                 ],
             ]);
-
         } catch (\Exception $e) {
             return response()->json([
                 'success' => false,
@@ -483,7 +481,7 @@ class ProjectController extends Controller
     {
         try {
             $user = Auth::user();
-            
+
             $project = DB::table('projects')->where('uuid', $uuid)->first();
 
             if (!$project) {
@@ -515,7 +513,6 @@ class ProjectController extends Controller
                 'success' => true,
                 'message' => 'Project deleted successfully',
             ]);
-
         } catch (\Exception $e) {
             return response()->json([
                 'success' => false,
@@ -532,7 +529,7 @@ class ProjectController extends Controller
     {
         try {
             $user = Auth::user();
-            
+
             $project = DB::table('projects')->where('uuid', $uuid)->first();
 
             if (!$project) {
@@ -604,7 +601,6 @@ class ProjectController extends Controller
                     ],
                 ],
             ]);
-
         } catch (\Exception $e) {
             return response()->json([
                 'success' => false,
@@ -621,7 +617,7 @@ class ProjectController extends Controller
     {
         try {
             $user = Auth::user();
-            
+
             $project = DB::table('projects')->where('uuid', $uuid)->first();
 
             if (!$project) {
@@ -670,7 +666,6 @@ class ProjectController extends Controller
                 'success' => true,
                 'message' => 'Successfully left the project',
             ]);
-
         } catch (\Exception $e) {
             return response()->json([
                 'success' => false,
@@ -687,7 +682,7 @@ class ProjectController extends Controller
     {
         try {
             $user = Auth::user();
-            
+
             if (!$user->organisation_id) {
                 return response()->json([
                     'success' => false,
@@ -730,7 +725,6 @@ class ProjectController extends Controller
                     'users' => $users,
                 ],
             ]);
-
         } catch (\Exception $e) {
             return response()->json([
                 'success' => false,
@@ -747,7 +741,7 @@ class ProjectController extends Controller
     {
         try {
             $user = Auth::user();
-            
+
             if (!$user->organisation_id) {
                 return response()->json([
                     'success' => false,
@@ -790,7 +784,7 @@ class ProjectController extends Controller
 
             if ($existingUser) {
                 // User exists - only email is needed
-                
+
                 // Check if user is already in the organization
                 if ($existingUser->organisation_id === $user->organisation_id) {
                     return response()->json([
@@ -869,7 +863,6 @@ class ProjectController extends Controller
                     ],
                 ], 201);
             }
-
         } catch (\Exception $e) {
             return response()->json([
                 'success' => false,
@@ -886,7 +879,7 @@ class ProjectController extends Controller
     {
         try {
             $user = Auth::user();
-            
+
             if (!$user->organisation_id) {
                 return response()->json([
                     'success' => false,
@@ -974,7 +967,6 @@ class ProjectController extends Controller
                     ],
                 ],
             ]);
-
         } catch (\Exception $e) {
             return response()->json([
                 'success' => false,
@@ -985,144 +977,170 @@ class ProjectController extends Controller
     }
 
     /**
-     * Send project invitation to a user.
+     * Send project invitation to multiple users.
      */
     public function sendInvitation(Request $request, string $uuid): JsonResponse
     {
         try {
             $user = Auth::user();
-            
+
             $validator = Validator::make($request->all(), [
-                'email' => 'required|email',
-                'role' => 'sometimes|in:member,lead,viewer',
+                'emails' => 'required|array|min:1',
+                'emails.*' => 'required|email',
+                'role' => 'required|in:member,lead,viewer', // Only permission roles
+                'designation_id' => 'nullable|exists:roles_master,id',
             ]);
 
             if ($validator->fails()) {
                 return response()->json([
                     'success' => false,
-                    'message' => 'Validation failed',
-                    'errors' => $validator->errors(),
-                ], 422);
-            }
-
-            // Get project
-            $project = DB::table('projects')->where('uuid', $uuid)->first();
-
-            if (!$project) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Project not found',
                 ], 404);
             }
 
-            // Check if user has access to project (is a member)
+            // Check if user has access to project (is creator or member)
+            $isCreator = $project->created_by === $user->id;
             $userInProject = DB::table('project_user')
                 ->where('project_id', $project->id)
                 ->where('user_id', $user->id)
                 ->first();
 
-            if (!$userInProject) {
+            if (!$isCreator && !$userInProject) {
                 return response()->json([
                     'success' => false,
                     'message' => 'You do not have access to this project',
                 ], 403);
             }
 
-            // Check if user is manager or lead (only they can invite)
-            if (!in_array($userInProject->role, ['manager', 'lead'])) {
+            // Check if user can invite (creator, manager, or lead)
+            $canInvite = $isCreator || ($userInProject && in_array($userInProject->role, ['manager', 'lead']));
+
+            if (!$canInvite) {
                 return response()->json([
                     'success' => false,
-                    'message' => 'Only project managers and leads can send invitations',
+                    'message' => 'Only project creators, managers, and leads can send invitations',
                 ], 403);
             }
 
-            // Check if invitee exists (can be from any organization or no organization)
-            $invitee = User::where('email', $request->email)->first();
+            $emails = $request->emails;
+            $role = $request->role ?? 'member';
+            $designationId = $request->designation_id;
+            $results = [];
+            $invitationUrl = 'http://localhost:8080/projects/invitation/';
 
-            if (!$invitee) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'User with this email does not exist',
-                ], 404);
-            }
+            foreach ($emails as $email) {
+                $email = strtolower(trim($email));
 
-            // Check if user is already in project
-            $alreadyInProject = DB::table('project_user')
-                ->where('project_id', $project->id)
-                ->where('user_id', $invitee->id)
-                ->exists();
+                // Check if user is already in project
+                $invitee = User::where('email', $email)->first();
+                $alreadyInProject = false;
 
-            if ($alreadyInProject) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'User is already a member of this project',
-                ], 400);
-            }
+                if ($invitee) {
+                    $alreadyInProject = DB::table('project_user')
+                        ->where('project_id', $project->id)
+                        ->where('user_id', $invitee->id)
+                        ->exists();
+                }
 
-            // Check if there's already a pending invitation
-            $existingInvitation = ProjectInvitation::where('project_id', $project->id)
-                ->where('email', $request->email)
-                ->where('status', 'pending')
-                ->where('expires_at', '>', now())
-                ->first();
+                if ($alreadyInProject) {
+                    $results[] = [
+                        'email' => $email,
+                        'success' => false,
+                        'message' => 'User is already a member of this project',
+                    ];
+                    continue;
+                }
 
-            if ($existingInvitation) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'An active invitation already exists for this user',
-                ], 400);
-            }
+                // Check if there's already a pending invitation
+                $existingInvitation = ProjectInvitation::where('project_id', $project->id)
+                    ->where('email', $email)
+                    ->where('status', 'pending')
+                    ->where('expires_at', '>', now())
+                    ->first();
 
-            // Create invitation  
-            $invitation = ProjectInvitation::create([
-                'project_id' => $project->id,
-                'email' => $request->email,
-                'token' => ProjectInvitation::generateToken(),
-                'invited_by' => $user->id,
-                'role' => $request->role ?? 'member',
-                'expires_at' => now()->addDays(7), // 7 days expiry
-            ]);
+                if ($existingInvitation) {
+                    $results[] = [
+                        'email' => $email,
+                        'success' => false,
+                        'message' => 'An active invitation already exists for this user',
+                    ];
+                    continue;
+                }
 
-            // Send email notification
-            $invitationUrl = 'http://localhost:8080/projects/invitation/' . $invitation->token;
-            
-            try {
-                Mail::raw(
-                    "You've been invited to join the project '{$project->name}'.\n\n" .
-                    "Invited by: {$user->first_name} {$user->last_name}\n" .
-                    "Role: {$invitation->role}\n\n" .
-                    "Click the link below to accept the invitation:\n" .
-                    $invitationUrl . "\n\n" .
-                    "This invitation will expire on " . $invitation->expires_at->format('F j, Y \a\t g:i A') . ".",
-                    function ($message) use ($request, $project) {
-                        $message->to($request->email)
-                            ->subject("Invitation to join '{$project->name}' project");
-                    }
-                );
-            } catch (\Exception $e) {
-                // Log email error but don't fail the invitation
-                \Log::warning('Failed to send project invitation email: ' . $e->getMessage());
-            }
+                // Get designation name if available
+                $designationName = 'Not specified';
+                if ($designationId) {
+                    $designation = DB::table('roles_master')->where('id', $designationId)->first();
+                    $designationName = $designation ? $designation->name : 'Not specified';
+                }
 
-            return response()->json([
-                'success' => true,
-                'message' => 'Invitation sent successfully',
-                'data' => [
+                // Create invitation  
+                $invitation = ProjectInvitation::create([
+                    'project_id' => $project->id,
+                    'email' => $email,
+                    'token' => ProjectInvitation::generateToken(),
+                    'invited_by' => $user->id,
+                    'role' => $role, // member/lead/viewer (permission)
+                    'designation_id' => $designationId, // Job title ID
+                    'expires_at' => now()->addDays(7),
+                ]);
+
+                // Send email notification
+                $inviteUrl = $invitationUrl . $invitation->token;
+
+                try {
+                    Mail::raw(
+                        "You've been invited to join project '{$project->name}'.\n\n" .
+                            "Invited by: {$user->first_name} {$user->last_name}\n" .
+                            "Role: {$role}\n" .
+                            "Designation: {$designationName}\n\n" .
+                            "Click the link below to accept the invitation:\n" .
+                            $inviteUrl . "\n\n" .
+                            "This invitation will expire on " . $invitation->expires_at->format('F j, Y \a\t g:i A') . ".\n\n" .
+                            ($invitee ? "" : "Note: You'll need to create an account if you don't have one yet."),
+                        function ($message) use ($email, $project) {
+                            $message->to($email)
+                                ->subject("Invitation to join '{$project->name}' project");
+                        }
+                    );
+                } catch (\Exception $e) {
+                    // Log email error but don't fail invitation
+                    Log::warning('Failed to send project invitation email: ' . $e->getMessage());
+                }
+
+                $results[] = [
+                    'email' => $email,
+                    'success' => true,
+                    'message' => 'Invitation sent successfully',
                     'invitation' => [
                         'uuid' => $invitation->uuid,
                         'email' => $invitation->email,
                         'role' => $invitation->role,
                         'project_name' => $project->name,
                         'expires_at' => $invitation->expires_at,
-                        'invitation_url' => $invitationUrl,
+                        'invitation_url' => $inviteUrl,
+                    ],
+                ];
+            }
+
+            $successCount = count(array_filter($results, fn($r) => $r['success']));
+            $totalCount = count($results);
+
+            return response()->json([
+                'success' => $successCount > 0,
+                'message' => "Invitations sent to {$successCount} of {$totalCount} recipients",
+                'data' => [
+                    'results' => $results,
+                    'summary' => [
+                        'total' => $totalCount,
+                        'successful' => $successCount,
+                        'failed' => $totalCount - $successCount,
                     ],
                 ],
             ], 201);
-
         } catch (\Exception $e) {
             return response()->json([
                 'success' => false,
-                'message' => 'Failed to send invitation',
+                'message' => 'Failed to send invitations',
                 'error' => config('app.debug') ? $e->getMessage() : 'Internal server error',
             ], 500);
         }
@@ -1135,7 +1153,7 @@ class ProjectController extends Controller
     {
         try {
             $user = Auth::user();
-            
+
             $project = DB::table('projects')->where('uuid', $uuid)->first();
 
             if (!$project) {
@@ -1184,7 +1202,6 @@ class ProjectController extends Controller
                     'invitations' => $invitations,
                 ],
             ]);
-
         } catch (\Exception $e) {
             return response()->json([
                 'success' => false,
@@ -1201,7 +1218,7 @@ class ProjectController extends Controller
     {
         try {
             $user = Auth::user();
-            
+
             $invitation = ProjectInvitation::where('token', $token)
                 ->where('email', $user->email)
                 ->first();
@@ -1280,7 +1297,6 @@ class ProjectController extends Controller
                     'organization_added' => (!$user->organisation_id || $user->organisation_id !== $project->organisation_id),
                 ],
             ]);
-
         } catch (\Exception $e) {
             return response()->json([
                 'success' => false,
@@ -1297,7 +1313,7 @@ class ProjectController extends Controller
     {
         try {
             $user = Auth::user();
-            
+
             $invitation = ProjectInvitation::where('token', $token)
                 ->where('email', $user->email)
                 ->first();
@@ -1323,7 +1339,6 @@ class ProjectController extends Controller
                 'success' => true,
                 'message' => 'Invitation rejected successfully',
             ]);
-
         } catch (\Exception $e) {
             return response()->json([
                 'success' => false,
@@ -1340,7 +1355,7 @@ class ProjectController extends Controller
     {
         try {
             $user = Auth::user();
-            
+
             $project = DB::table('projects')->where('uuid', $uuid)->first();
 
             if (!$project) {
@@ -1387,7 +1402,6 @@ class ProjectController extends Controller
                 'success' => true,
                 'message' => 'Invitation cancelled successfully',
             ]);
-
         } catch (\Exception $e) {
             return response()->json([
                 'success' => false,
@@ -1434,7 +1448,6 @@ class ProjectController extends Controller
                     'invitations' => $invitations,
                 ],
             ]);
-
         } catch (\Exception $e) {
             return response()->json([
                 'success' => false,
